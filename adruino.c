@@ -4,9 +4,9 @@
 
 // Network and Telegram Bot credentials
 const char* ssid = "ssid";
-const char* password = "pw";
-const char* telegramToken = "your_TELEGRAM_BOT_TOKEN";
-const char* telegramChatId = "your_TELEGRAM_CHAT_ID";
+const char* password = "pws";
+const char* telegramToken = "token";
+const char* telegramChatId = "id";
 
 // Sensor and pump pins
 const int sensorPin1 = 36;
@@ -68,7 +68,6 @@ void setup() {
 }
 
 void loop() {
- unsigned long startTime = millis();
  digitalWrite(sensorPowerPin, HIGH);
  delay(1000); // Wait for sensors to stabilize
 
@@ -86,34 +85,46 @@ void loop() {
  Serial.print("Moisture Sensor 4: ");
  Serial.println(sensorValue4);
 
- controlPumps(sensorValue1, pumpPin1);
- controlPumps(sensorValue2, pumpPin2);
- controlPumps(sensorValue3, pumpPin3);
- controlPumps(sensorValue4, pumpPin4);
+ controlPumps(sensorValue1, pumpPin1, sensorPin1);
+ controlPumps(sensorValue2, pumpPin2, sensorPin2);
+ controlPumps(sensorValue3, pumpPin3, sensorPin3);
+ controlPumps(sensorValue4, pumpPin4, sensorPin4);
 
- unsigned long elapsedTime = millis() - startTime;
- if (elapsedTime >= 60000) { // 1 minute
-    sendMessageAndSleep();
- }
+ sendMessageAndSleep();
 }
 
-void controlPumps(int sensorValue, int pumpPin) {
- while (sensorValue > dryThreshold) {
+void controlPumps(int sensorValue, int pumpPin, int sensorPin) {
+ unsigned long startTime = millis();
+ while ((sensorValue > dryThreshold) || ((millis() - startTime) < 60000)) {
     digitalWrite(pumpPin, HIGH);
+    sensorValue = analogRead(sensorPin);
  }
  // end the pumping
  digitalWrite(pumpPin, LOW);
 }
 
 void sendMessageAndSleep() {
- digitalWrite(sensorPowerPin, LOW);
- digitalWrite(pumpPin1, LOW);
- digitalWrite(pumpPin2, LOW);
- digitalWrite(pumpPin3, LOW);
- digitalWrite(pumpPin4, LOW);
+    digitalWrite(sensorPowerPin, LOW);
+    digitalWrite(pumpPin1, LOW);
+    digitalWrite(pumpPin2, LOW);
+    digitalWrite(pumpPin3, LOW);
+    digitalWrite(pumpPin4, LOW);
 
- String message = "Cycle Complete. Total active time: " + String(millis() / 1000) + " seconds";
- bot.sendMessage(telegramChatId, message);
+    String message = "Cycle Complete. Total active time: " + String(millis() / 1000) + " seconds";
+    Serial.print("About to send Telegram message");
 
- ESP.deepSleep(deepSleepDuration);
+    // Check if the client is connected to the server
+    if (client.connected()) {
+        // Connection is established, send the message
+        bot.sendMessage(telegramChatId, message);
+        Serial.println("Message sent successfully.");
+    } else {
+        // Connection failed, print an error message
+        Serial.println("Failed to establish connection to Telegram API.");
+    }
+
+    // Add a delay to ensure the message is sent before entering deep sleep
+    delay(1000);
+
+    ESP.deepSleep(deepSleepDuration);
 }
